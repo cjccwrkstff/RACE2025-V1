@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>R.A.C.E 2025 — Home</title>
+
+<style>
+:root {
+  --bg-color:#0d1117;--text-color:#c9d1d9;--card-bg:#161b22;
+  --border-color:#30363d;--accent-color:#58a6ff;--muted-color:#8b949e;
+}
+body.light {
+  --bg-color:#f5f6fa;--text-color:#2f3640;--card-bg:#ffffff;
+  --border-color:#dcdde1;--accent-color:#273c75;--muted-color:#555;
+}
+body{background:var(--bg-color);color:var(--text-color);
+  font-family:"Segoe UI",sans-serif;margin:0;text-align:center;
+  transition:background .3s,color .3s;}
+header{padding:30px 20px 10px 20px;position:relative;}
+h1{color:var(--accent-color);font-size:34px;margin-bottom:4px;}
+h2{color:var(--muted-color);margin-top:0;}
+.controls{position:absolute;top:20px;right:20px;display:flex;gap:10px;}
+button.icon{background:none;border:0;font-size:22px;color:var(--accent-color);
+  cursor:pointer;padding:6px;border-radius:6px;}
+button.icon:hover{transform:scale(1.15);}
+.viewer-container{
+  margin:30px auto;width:90%;height:70vh;background:var(--card-bg);
+  border:1px solid var(--border-color);border-radius:12px;
+  display:flex;align-items:center;justify-content:center;position:relative;}
+#pdfCanvas{max-width:100%;max-height:100%;}
+iframe,#docContainer{width:100%;height:100%;border:none;overflow:auto;
+  color:var(--text-color);padding:10px;}
+.zoom-controls,.page-controls{position:absolute;display:flex;gap:8px;bottom:10px;}
+.zoom-controls{right:10px;} .page-controls{left:10px;}
+button{border:none;border-radius:8px;background:var(--accent-color);
+  color:var(--bg-color);cursor:pointer;font-weight:bold;padding:8px 12px;}
+button:hover{transform:scale(1.05);}
+#startBtn{margin:25px auto;padding:15px 50px;font-size:18px;border-radius:10px;display:block;}
+.quick-links{position:fixed;left:20px;bottom:20px;display:flex;flex-direction:column;gap:12px;}
+.quick-links a{color:var(--accent-color);font-size:22px;text-decoration:none;}
+.quick-links a:hover{transform:scale(1.2);}
+#logoutBtn{position:fixed;top:20px;left:20px;background:none;border:0;
+  color:var(--accent-color);font-size:22px;cursor:pointer;}
+footer{padding:10px;color:var(--muted-color);font-size:12px;}
+</style>
+</head>
+
+<body>
+<header>
+  <button id="logoutBtn" title="Logout">⛔</button>
+  <div class="controls"><button id="themeToggle" class="icon" title="Toggle Theme">🌙</button></div>
+  <h1>R.A.C.E 2025</h1>
+  <h2>Rates and Case Engine for Billers</h2>
+</header>
+
+<div class="viewer-container">
+  <canvas id="pdfCanvas"></canvas>
+  <div id="docContainer" style="display:none;"></div>
+  <iframe id="fileViewer" sandbox="allow-scripts allow-same-origin"></iframe>
+
+  <div class="page-controls">
+    <button id="prevPage">⟨</button>
+    <span id="pageInfo" style="align-self:center;font-size:14px;color:var(--muted-color)">1 / 1</span>
+    <button id="nextPage">⟩</button>
+  </div>
+  <div class="zoom-controls">
+    <button id="zoomIn">+</button>
+    <button id="zoomOut">−</button>
+    <button id="resetZoom">⟳</button>
+  </div>
+</div>
+
+<button id="startBtn">Let's RACE!</button>
+
+<div class="quick-links">
+  <a href="https://mail.google.com" target="_blank" title="Gmail">📧</a>
+  <a href="https://drive.google.com" target="_blank" title="Google Drive">💾</a>
+  <a href="https://ihcp.philhealth.gov.ph" target="_blank" title="IHCP Portal">🏥</a>
+</div>
+
+<footer>© CJCCRatesAndCodesEngine2025. All Rights Reserved.</footer>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+<script>
+/* Theme toggle */
+const themeBtn=document.getElementById("themeToggle");
+function applyTheme(t){
+  document.body.classList.toggle("light",t==="light");
+  localStorage.setItem("race_theme",t);
+  themeBtn.textContent=t==="light" ? "🌙" : "☀️";
+}
+applyTheme(localStorage.getItem("race_theme")||"dark");
+themeBtn.addEventListener("click",()=>applyTheme(document.body.classList.contains("light")?"dark":"light"));
+
+/* Logout */
+document.getElementById("logoutBtn").addEventListener("click",()=>{
+  localStorage.removeItem("loggedInUser");
+  window.location.href="login.html";
+});
+
+/* Open index.html in new Electron window */
+document.getElementById("startBtn").addEventListener("click",()=>{
+  try {
+    const { ipcRenderer } = require('electron');
+    ipcRenderer.send('open-race-window');
+  } catch (e) {
+    alert("This feature works only in the Electron app.");
+  }
+});
+
+/* Document viewer (only enabled in Electron) */
+(async function() { // IMPORTANT: Changed to async IIFE to await path fetching
+  let fs, path, pdfjsLib, mammoth, XLSX;
+  const pageControls=document.querySelector('.page-controls');
+  const zoomControls=document.querySelector('.zoom-controls');
+
+  // Check for Electron
+  const isElectron = !!(window && window.process && window.process.type);
+  if(!isElectron) {
+    // Non-Electron Fallback
+    document.getElementById('pdfCanvas').style.display='none';
+    document.getElementById('fileViewer').style.display='none';
+    document.getElementById('docContainer').style.display='none';
+    pageControls.style.display='none';
+    zoomControls.style.display='none';
+    const msg=document.createElement('div');
+    msg.style.color='var(--muted-color)';
+    msg.style.padding='24px';
+    msg.style.fontSize='18px';
+    msg.innerHTML="Document viewer works only in the Electron app.";
+    document.querySelector('.viewer-container').appendChild(msg);
+    return;
+  }
+
+  try {
+    const { ipcRenderer } = require('electron'); // Load ipcRenderer
+    fs = require('fs');
+    path = require('path');
+    pdfjsLib = window['pdfjs-dist/build/pdf'];
+    try { mammoth = require('mammoth'); } catch(_) {}
+    try { XLSX = require('xlsx'); } catch(_) {}
+
+    // CRITICAL FIX: Fetch the correct AppData path from the main process
+    const paths = await ipcRenderer.invoke('get-app-paths');
+    const docsDir = paths.docsDir; 
+
+    // --- Original Logic for Finding Files ---
+    const files = fs.existsSync(docsDir)
+      ? fs.readdirSync(docsDir)
+        .map(f=>({name:f,time:fs.statSync(path.join(docsDir,f)).mtime}))
+        .sort((a,b)=>b.time-a.time)
+      : [];
+    // ----------------------------------------
+    
+    const pdfCanvas=document.getElementById('pdfCanvas');
+    const ctx=pdfCanvas.getContext('2d');
+    const fileViewer=document.getElementById('fileViewer');
+    const docContainer=document.getElementById('docContainer');
+    let pdfDoc=null,pageNum=1,totalPages=0,scale=1.2;
+    const pageInfo=document.getElementById('pageInfo');
+    
+    // Hide controls by default
+    pageControls.style.display='none';
+    zoomControls.style.display='none';
+
+    function renderPage(num){
+      // Re-attaches click listeners to update pageNum/scale variables on render
+      document.getElementById('nextPage').onclick=()=>{if(pdfDoc&&pageNum<totalPages){pageNum++;renderPage(pageNum);}};
+      document.getElementById('prevPage').onclick=()=>{if(pdfDoc&&pageNum>1){pageNum--;renderPage(pageNum);}};
+      document.getElementById('zoomIn').onclick=()=>{if(pdfDoc){scale+=0.1;renderPage(pageNum);}};
+      document.getElementById('zoomOut').onclick=()=>{if(pdfDoc){scale=Math.max(0.5,scale-0.1);renderPage(pageNum);}};
+      document.getElementById('resetZoom').onclick=()=>{if(pdfDoc){scale=1.2;renderPage(pageNum);}};
+      
+      pdfDoc.getPage(num).then(page=>{
+        const viewport=page.getViewport({scale});
+        pdfCanvas.height=viewport.height;pdfCanvas.width=viewport.width;
+        page.render({canvasContext:ctx,viewport});
+        pageInfo.textContent=`${num} / ${totalPages}`;
+      });
+    }
+
+    if(files.length>0){
+      const latest=path.join(docsDir, files[0].name);
+      const ext=path.extname(latest).toLowerCase();
+
+      if(ext===".pdf"){
+        // Show PDF Controls and set up PDF rendering
+        pageControls.style.display='flex';
+        zoomControls.style.display='flex';
+        
+        fileViewer.style.display='none';docContainer.style.display='none';
+        pdfCanvas.style.display='';
+        
+        // Use file:// protocol for local file access
+        pdfjsLib.getDocument(`file://${latest}`).promise.then(pdf=>{
+          pdfDoc=pdf;totalPages=pdf.numPages;renderPage(pageNum);
+        });
+      }
+      else if([".png",".jpg",".jpeg"].includes(ext)){
+        pdfCanvas.style.display='none';docContainer.style.display='none';
+        fileViewer.style.display='';
+        fileViewer.src=`file://${latest}`;
+      }
+      else if(ext===".docx" && mammoth){
+        pdfCanvas.style.display='none';fileViewer.style.display='none';
+        docContainer.style.display='block';
+        const buffer=fs.readFileSync(latest);
+        mammoth.convertToHtml({buffer}).then(r=>{
+          docContainer.innerHTML=r.value;
+        }).catch(()=>docContainer.innerHTML="<p>Unable to render .docx</p>");
+      }
+      else if((ext===".xlsx"||ext===".xls") && XLSX){
+        pdfCanvas.style.display='none';fileViewer.style.display='none';
+        docContainer.style.display='block';
+        const wb=XLSX.readFile(latest);
+        let html="";
+        wb.SheetNames.forEach(name=>{
+          html+=`<h3>${name}</h3>`+XLSX.utils.sheet_to_html(wb.Sheets[name]);
+        });
+        docContainer.innerHTML=html;
+      }
+      else{
+        pdfCanvas.style.display='none';docContainer.style.display='none';
+        fileViewer.style.display='';
+        fileViewer.srcdoc="<p style='color:var(--muted-color);'>Unsupported file type.</p>";
+      }
+    }
+    else{
+      pdfCanvas.style.display='none';docContainer.style.display='none';
+      fileViewer.style.display='';
+      fileViewer.srcdoc="<p style='color:var(--muted-color);'>No document found in AppData uploads directory.</p>";
+    }
+
+  } catch(err) {
+    console.error("Critical viewer error:", err);
+    pageControls.style.display='none';
+    zoomControls.style.display='none';
+    alert("Error loading document viewer. Check console for details.");
+  }
+
+})(); // End of async IIFE
+</script>
+</body>
+</html>

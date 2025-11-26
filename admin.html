@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin Panel — Document Uploader</title>
+
+<style>
+:root {
+  --bg-color:#0d1117;--text-color:#c9d1d9;--card-bg:#161b22;
+  --border-color:#30363d;--accent-color:#d2a8ff;--muted-color:#8b949e;
+  --danger-color:#a52a2a;--success-color:#238636;
+}
+body {margin:0;font-family:"Segoe UI",sans-serif;background:var(--bg-color);color:var(--text-color);padding:20px;}
+header {text-align:center;padding:10px 0;}
+h1 {color:var(--accent-color);margin:0;font-size:30px;}
+main {max-width:900px;margin:0 auto;padding:10px 0;}
+section {background:var(--card-bg);padding:20px;border:1px solid var(--border-color);border-radius:12px;margin-bottom:30px;}
+h2 {color:var(--text-color);margin-top:0;border-bottom:1px solid var(--border-color);padding-bottom:10px;margin-bottom:20px;}
+.upload-status {
+    padding: 10px; margin-bottom: 20px; border-radius: 6px;
+    background: #233b2e; color: var(--success-color);
+    border: 1px solid var(--success-color);
+}
+.upload-status.error {
+    background: #442a2a; color: var(--danger-color); border: 1px solid var(--danger-color);
+}
+input[type="file"], input[type="text"] {
+    display: block; width: 100%; padding: 10px; margin-bottom: 10px;
+    background: var(--bg-color); border: 1px solid var(--border-color);
+    color: var(--text-color); border-radius: 6px; box-sizing: border-box;
+}
+button {
+  background:var(--accent-color);color:var(--bg-color);border:none;padding:10px 16px;
+  border-radius:8px;cursor:pointer;transition:transform .15s;
+}
+button:hover {transform:scale(1.03);}
+.btn-danger {background:var(--danger-color);}
+.btn-neutral {background:var(--border-color); color:var(--text-color);}
+
+/* File List Table */
+table {width:100%; border-collapse:collapse; margin-top:15px;}
+th, td {padding:10px; border:1px solid var(--border-color); text-align:left; font-size:14px;}
+th {background:var(--bg-color); color:var(--accent-color);}
+.renameInput {
+    background:none; border:none; color:var(--text-color); width:95%;
+    font-size:14px;
+}
+.renameInput:focus {outline:1px dashed var(--accent-color);}
+.action-buttons button {padding:5px 10px; font-size:12px;}
+</style>
+</head>
+
+<body>
+<header>
+    <button id="backBtn" class="btn-neutral" style="position:absolute; left:20px; top:30px;">← Back to Login</button>
+    <h1>Document Manager</h1>
+    <p style="color:var(--muted-color);">Manage files for the Home viewer window</p>
+</header>
+
+<main>
+    <section>
+        <h2>Upload Local File</h2>
+        <div id="uploadStatus" class="upload-status" style="display:none;"></div>
+        
+        <label for="fileInput">Select File (PDF, DOCX, XLSX, Image):</label>
+        <input type="file" id="fileInput" />
+        
+        <button id="uploadBtn">Upload to Viewer</button>
+    </section>
+
+    <section>
+        <h2>Current Files (AppData/uploads)</h2>
+        <table id="fileTable">
+            <thead>
+                <tr>
+                    <th>File Name</th>
+                    <th>Last Modified</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                </tbody>
+        </table>
+        <p id="noFilesMsg" style="text-align:center; color:var(--muted-color); margin-top:20px; display:none;">No files uploaded yet.</p>
+    </section>
+</main>
+
+<script>
+const { ipcRenderer } = require('electron');
+
+let uploadsPath = "";
+
+function showUploadStatus(message, isSuccess = true) {
+    const statusEl = document.getElementById('uploadStatus');
+    statusEl.textContent = '';
+    statusEl.innerHTML = message;
+    statusEl.className = isSuccess ? 'upload-status' : 'upload-status error';
+    statusEl.style.display = 'block';
+}
+
+async function loadFiles() {
+    const files = await ipcRenderer.invoke('list-files');
+    const tbody = document.getElementById('fileTable').querySelector('tbody');
+    const noFilesMsg = document.getElementById('noFilesMsg');
+    tbody.innerHTML = '';
+
+    if (files.length === 0) {
+        noFilesMsg.style.display = 'block';
+        return;
+    }
+
+    noFilesMsg.style.display = 'none';
+    
+    // Sort by modification time (newest first)
+    files.sort((a, b) => b.time - a.time);
+
+    files.forEach(file => {
+        const row = tbody.insertRow();
+        const date = new Date(file.time).toLocaleString();
+
+        row.innerHTML = `
+            <td><input type="text" class="renameInput" value="${file.name}" data-old-name="${file.name}"></td>
+            <td>${date}</td>
+            <td class="action-buttons">
+                <button class="renameBtn">Rename</button>
+                <button class="openBtn">Open</button>
+                <button class="deleteBtn btn-danger">Delete</button>
+            </td>
+        `;
+    });
+
+    attachFileEventListeners();
+}
+
+function attachFileEventListeners() {
+    document.querySelectorAll('.openBtn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const row = e.target.closest('tr');
+            const name = row.querySelector('.renameInput').value.trim();
+            // Ask main process to open the file using the default system app
+            ipcRenderer.send('open-file', name); 
+        });
+    });
+    
+    document.querySelectorAll('.renameBtn').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+            const row = e.target.closest('tr');
+            const input = row.querySelector('.renameInput');
+            const oldName = input.getAttribute('data-old-name');
+            const newName = input.value.trim();
+
+            if (newName && newName !== oldName) {
+                const ok = await ipcRenderer.invoke('rename-file', oldName, newName);
+                if (ok) {
+                    showUploadStatus(`✅ Renamed to <strong>${newName}</strong>`);
+                    input.setAttribute('data-old-name', newName);
+                    loadFiles();
+                } else {
+                    showUploadStatus("❌ Rename failed.", false);
+                }
+            }
+        });
+    });
+
+    document.querySelectorAll('.deleteBtn').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+            const row = e.target.closest('tr');
+            const name = row.querySelector('.renameInput').value.trim();
+            if (confirm(`Delete "${name}"?`)) {
+                const ok = await ipcRenderer.invoke('delete-file', name);
+                if (ok) {
+                    showUploadStatus(`✅ Deleted: <strong>${name}</strong>`);
+                    loadFiles();
+                } else {
+                    showUploadStatus("❌ Deletion failed.", false);
+                }
+            }
+        });
+    });
+}
+
+// --- Main Upload Logic ---
+document.getElementById('uploadBtn').addEventListener('click', async () => {
+    const fileInput = document.getElementById('fileInput');
+    if (fileInput.files.length === 0) {
+        showUploadStatus("Please select a file first.", false);
+        return;
+    }
+
+    const file = fileInput.files[0];
+    
+    // Electron specific property: file.path contains the full path on the user's computer
+    if (!file.path) {
+        showUploadStatus("Error: Could not access file path. Use Electron or try a different file.", false);
+        return;
+    }
+
+    showUploadStatus(`Uploading <strong>${file.name}</strong>...`);
+
+    const result = await ipcRenderer.invoke('upload-file-local', file.path, file.name);
+
+    if (result.success) {
+        showUploadStatus(`✅ Successfully uploaded <strong>${file.name}</strong>.`);
+        fileInput.value = ''; // Clear input
+        loadFiles();
+    } else {
+        showUploadStatus(`❌ Upload failed: ${result.error}`, false);
+    }
+});
+
+// --- Back Button ---
+document.getElementById("backBtn").addEventListener("click",()=>{
+  window.location.href="login.html";
+});
+
+
+// --- Initialization ---
+document.addEventListener('DOMContentLoaded', async () => {
+    // We only need the path to verify connection, but list-files handles the load
+    const paths = await ipcRenderer.invoke('get-app-paths');
+    uploadsPath = paths.uploadsPath;
+
+    // Load initial file list
+    loadFiles();
+});
+
+</script>
+</body>
+</html>

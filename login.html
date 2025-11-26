@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>RACE 2025 - Login</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Define dark mode variables for a modern, professional look */
+        :root {
+            --bg-color: #0d1117;
+            --card-bg: #161b22;
+            --text-color: #c9d1d9;
+            --border-color: #30363d;
+            --accent-color: #58a6ff;
+            --error-color: #f87171;
+            --muted-color: #8b949e;
+        }
+
+        /* Light mode theme switch */
+        body.light {
+            --bg-color: #f5f6fa;
+            --text-color: #2f3640;
+            --card-bg: #ffffff;
+            --border-color: #dcdde1;
+            --accent-color: #273c75;
+            --muted-color: #555;
+            --error-color: #dc2626;
+        }
+
+        /* Essential style to prevent scrolling and utilize 100% of the window */
+        html, body {
+            height: 100%;
+            margin: 0;
+            overflow: hidden; /* Prevents scroll bars */
+            font-family: "Inter", sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            display: flex;
+            flex-direction: column; /* Stacks Title Bar, Content, and Footer vertically */
+            transition: background 0.3s ease;
+        }
+        
+        /* Main login content takes all available space between title bar and footer */
+        .login-container {
+            flex-grow: 1; 
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .title-bar {
+            /* This is now just a draggable area without buttons */
+            -webkit-app-region: drag; 
+            height: 30px;
+            background-color: var(--card-bg);
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        /* New Footer Styling */
+        .app-footer {
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: var(--card-bg);
+            border-top: 1px solid var(--border-color);
+            font-size: 0.75rem;
+            color: var(--muted-color);
+            padding: 0 1rem;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Draggable Title Bar (Since frame:false is set in main.js) -->
+    <div class="title-bar"></div>
+
+    <!-- Login Content -->
+    <div class="login-container">
+        
+        <div class="bg-card-bg p-8 max-w-sm w-full rounded-xl shadow-2xl border border-border-color relative">
+            
+            <!-- Dummy Theme Toggle -->
+            <button id="themeToggle" class="absolute top-2 left-2 text-xl p-1 rounded-full hover:bg-muted-color/20 transition">
+                ☀️
+            </button>
+            
+            <h1 class="text-3xl font-extrabold text-accent-color text-center mb-6">
+                R.A.C.E. 2025
+            </h1>
+            <p class="text-sm text-center text-muted-color mb-8">
+                Rates and Codes Engine
+            </p>
+
+            <form id="loginForm" class="space-y-4">
+                <div>
+                    <label for="username" class="block text-sm font-medium text-text-color">Username</label>
+                    <input type="text" id="username" name="username" class="mt-1 block w-full px-3 py-2 bg-card-bg border border-border-color rounded-lg shadow-sm focus:outline-none focus:ring-accent-color focus:border-accent-color" required />
+                </div>
+                <div>
+                    <label for="password" class="block text-sm font-medium text-text-color">Password</label>
+                    <input type="password" id="password" name="password" class="mt-1 block w-full px-3 py-2 bg-card-bg border border-border-color rounded-lg shadow-sm focus:outline-none focus:ring-accent-color focus:border-accent-color" required />
+                </div>
+                
+                <div id="error-message" class="text-error-color text-sm pt-2 hidden">Invalid username or password.</div>
+
+                <!-- Split Buttons: LOGIN and CLOSE -->
+                <div class="flex space-x-4 pt-4">
+                    <!-- LOGIN button updated: added 'border-2 border-white' to give it a visible outline -->
+                    <button type="submit" id="loginBtn" class="w-1/2 py-2 px-4 border-2 border-white rounded-lg shadow-sm text-sm font-medium text-white bg-accent-color hover:bg-opacity-80 transition duration-150 ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-accent-color focus:ring-offset-card-bg">
+                        LOGIN
+                    </button>
+                    <button type="button" id="closeBtn" class="w-1/2 py-2 px-4 border border-border-color rounded-lg shadow-sm text-sm font-medium text-text-color bg-card-bg hover:bg-muted-color/10 transition duration-150 ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-border-color focus:ring-offset-card-bg">
+                        CLOSE
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Application Footer with new name -->
+    <div class="app-footer">
+        © 2025 cjccRACEAPP2025. All rights reserved. Version 1.0
+    </div>
+
+
+    <script>
+        // Check if we are running in Electron
+        const isElectron = (typeof require !== 'undefined');
+        // Safely access ipcRenderer only if in an Electron environment
+        const ipcRenderer = isElectron ? require('electron').ipcRenderer : null;
+        
+        const form = document.getElementById('loginForm');
+        const errorMessage = document.getElementById('error-message');
+        const closeBtn = document.getElementById('closeBtn');
+        const themeBtn = document.getElementById('themeToggle');
+
+
+        /* --- Theme Toggle Logic --- */
+        function applyTheme(mode){
+            document.body.classList.toggle("light", mode === "light");
+            localStorage.setItem("race_theme", mode);
+            themeBtn.textContent = mode === "light" ? "🌙" : "☀️";
+        }
+        
+        // On load, set theme and icon according to saved preference
+        const currentTheme = localStorage.getItem("race_theme") || "dark";
+        applyTheme(currentTheme);
+
+        themeBtn.addEventListener("click", ()=>{
+            const nextMode = document.body.classList.contains("light") ? "dark" : "light";
+            applyTheme(nextMode);
+        });
+
+
+        /* --- Close Button Logic ---
+         * Sends an IPC message to main.js to close the window.
+         */
+        closeBtn.addEventListener('click', () => {
+            if (isElectron && ipcRenderer) {
+                // 'close-window' is handled by main.js to properly close the Electron window
+                ipcRenderer.send('close-window');
+            } else {
+                // Fallback for browser environment 
+                window.close();
+            }
+        });
+
+
+        /* --- Login Handler --- */
+        form.addEventListener('submit', (e) => {
+            e.preventDefault();
+            errorMessage.classList.add('hidden');
+
+            const username = document.getElementById('username').value.trim().toLowerCase();
+            const password = document.getElementById('password').value.trim();
+
+            // Simple validation: accepts 'admin'/'admin' or 'user'/'user'
+            if ((username === 'admin' && password === 'admin') || (username === 'user' && password === 'user')) {
+                // SUCCESS: Tell main process to close this window and open home.html
+                if (isElectron && ipcRenderer) {
+                    ipcRenderer.send('open-home-window');
+                } else {
+                    // Browser fallback: direct redirect
+                    window.location.href = 'home.html';
+                }
+            } else {
+                // FAILURE
+                errorMessage.classList.remove('hidden');
+            }
+        });
+
+    </script>
+</body>
+</html>
