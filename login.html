@@ -176,8 +176,8 @@
             const username = document.getElementById('username').value.trim().toLowerCase();
             const password = document.getElementById('password').value.trim();
 
-            // Simple validation: accepts 'admin'/'admin' or 'user'/'user'
-            if ((username === 'admin' && password === 'admin') || (username === 'user' && password === 'user')) {
+            // UPDATED VALIDATION: Accepts 'biller'/'00' or 'admin'/'11'
+            if ((username === 'biller' && password === '00') || (username === 'admin' && password === '11')) {
                 // SUCCESS: Tell main process to close this window and open home.html
                 if (isElectron && ipcRenderer) {
                     ipcRenderer.send('open-home-window');
