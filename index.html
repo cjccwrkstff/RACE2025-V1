@@ -232,10 +232,18 @@ function renderRequirements(req) {
   } else {
     html += `<div class="req-missing">❌ No reminders provided.</div>`;
   }
-
+  const skipKeys = [
+    "Codes",
+    "Description",
+    "First Case Rate",
+    "Unnamed: 3",
+    "Unnamed: 4",
+    "REMINDER/REQUIREMENTS"
+  ];
   // Other requirement fields
   Object.keys(req).forEach(key => {
-    if (key === "REMINDER/REQUIREMENTS") return;
+
+    if (skipKeys.includes(key)) return;
 
     const val = Number(req[key]);
     const ok = val === 1 ? "✔️" : "❌";
@@ -295,7 +303,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Search
   document.getElementById("searchBtn").onclick = executeSearch;
-  document.getElementById("searchBar").onkeydown = e => { if (e.key === "Enter") executeSearch(); };
+  document.getElementById("searchBar").oninput = executeSearch; };
 
   // Theme toggle
   document.getElementById("themeToggle").onclick = () => {
@@ -354,3 +362,4 @@ document.addEventListener("DOMContentLoaded", () => {
 </div>
 </body>
 </html>
+
