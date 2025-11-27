@@ -12,7 +12,6 @@ let raceWindow; // Will hold the main Rates and Codes Engine Window (index.html)
 // --- CRITICAL PATH DEFINITIONS ---
 const appDataPath = app.getPath('userData');
 const dbPath = path.join(appDataPath, 'database.json');
-const reqPath = path.join(appDataPath, 'requirements.json');
 const docsDir = path.join(appDataPath, 'uploads');
 
 // --- APP DATA INITIALIZATION FUNCTION ---
@@ -318,3 +317,4 @@ ipcMain.handle('import-data', async (event, fileName) => {
     return null;
   }
 });
+
