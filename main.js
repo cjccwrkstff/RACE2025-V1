@@ -1,91 +1,81 @@
-// ===============================================
-// R.A.C.E 2025 main.js - CRITICAL SETUP
-// ===============================================
-const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
-const path = require('path');
-const fs = require('fs');
+// ===============================================================
+// R.A.C.E 2025 main.js  —  Fully Integrated, Clean, Updated
+// ===============================================================
+const { app, BrowserWindow, ipcMain, dialog, shell } = require("electron");
+const path = require("path");
+const fs = require("fs");
 
-let loginWindow; // Will hold the initial Login Window (login.html)
-let homeWindow; // Will hold the Home Window (home.html) after login
-let raceWindow; // Will hold the main Rates and Codes Engine Window (index.html)
+let loginWindow;
+let homeWindow;
+let raceWindow;
 
-// --- CRITICAL PATH DEFINITIONS ---
-const appDataPath = app.getPath('userData');
-const dbPath = path.join(appDataPath, 'database.json');
-const docsDir = path.join(appDataPath, 'uploads');
+// --- CRITICAL PATHS ---
+const appDataPath = app.getPath("userData");
+const dbPath = path.join(appDataPath, "database.json");
+const reqPath = path.join(appDataPath, "requirements.json");
+const docsDir = path.join(appDataPath, "uploads");
 
-// --- APP DATA INITIALIZATION FUNCTION ---
+// ---------------------------------------------------------------
+// INITIALIZE APP DATA (database.json, requirements.json, uploads)
+// ---------------------------------------------------------------
 function initializeAppData() {
-  if (!fs.existsSync(appDataPath)) {
-    fs.mkdirSync(appDataPath, { recursive: true });
-  }
+  if (!fs.existsSync(appDataPath)) fs.mkdirSync(appDataPath, { recursive: true });
+  if (!fs.existsSync(docsDir)) fs.mkdirSync(docsDir, { recursive: true });
 
-  if (!fs.existsSync(docsDir)) {
-    fs.mkdirSync(docsDir, { recursive: true });
-  }
-
-  // Helper function to find and copy a file
-  const copyFileToAppData = (fileName, destPath) => {
-    const possiblePaths = [
-      path.join(process.resourcesPath, 'app.asar.unpacked', fileName),
-      path.join(__dirname, fileName) 
+  const copyToAppData = (fileName, dest) => {
+    const candidates = [
+      path.join(process.resourcesPath, "app.asar.unpacked", fileName),
+      path.join(__dirname, fileName)
     ];
-    
-    const sourcePath = possiblePaths.find(p => fs.existsSync(p));
+    const source = candidates.find(p => fs.existsSync(p));
 
-    if (sourcePath) {
-      fs.copyFileSync(sourcePath, destPath);
-      console.log(`Initialized ${fileName} from ${sourcePath}`);
+    if (source) {
+      fs.copyFileSync(source, dest);
+      console.log(`${fileName} copied → ${dest}`);
     } else {
-      console.error(`CRITICAL: Could not find source ${fileName}!`);
-      // Create empty file to prevent crash
-      fs.writeFileSync(destPath, '[]'); 
+      console.error(`Missing ${fileName}, created empty file.`);
+      fs.writeFileSync(dest, "[]");
     }
   };
 
-  if (!fs.existsSync(dbPath)) copyFileToAppData('database.json', dbPath);
-  if (!fs.existsSync(reqPath)) copyFileToAppData('requirements.json', reqPath);
+  if (!fs.existsSync(dbPath)) copyToAppData("database.json", dbPath);
+  if (!fs.existsSync(reqPath)) copyToAppData("requirements.json", reqPath);
 }
 
-/**
- * Creates the initial Login window.
- */
+// ---------------------------------------------------------------
+// LOGIN WINDOW (FIRST WINDOW)
+// ---------------------------------------------------------------
 function createLoginWindow() {
   initializeAppData();
 
   loginWindow = new BrowserWindow({
-    // Increased default size and set min size
-    width: 800, 
+    width: 800,
     height: 600,
     minWidth: 400,
     minHeight: 300,
     webPreferences: {
       nodeIntegration: true,
-      contextIsolation: false,
-      enableRemoteModule: false,
+      contextIsolation: false
     },
-    title: 'RACE 2025 - Login',
-    frame: false,    // Keep the custom frame (no native window bar)
-    resizable: true, // Allow resizing
+    title: "RACE 2025 - Login",
+    frame: false,
+    resizable: true
   });
 
-  loginWindow.loadURL(`file://${path.join(__dirname, 'login.html')}`);
+  loginWindow.loadFile("login.html");
 
-  loginWindow.on('closed', () => { 
-    loginWindow = null; 
+  loginWindow.on("closed", () => {
+    loginWindow = null;
     if (!homeWindow && !raceWindow) app.quit();
   });
 }
 
-/**
- * Creates the Home window. This window replaces the login window.
- */
+// ---------------------------------------------------------------
+// HOME WINDOW (AFTER LOGIN)
+// ---------------------------------------------------------------
 function createHomeWindow() {
-  if (homeWindow) {
-    homeWindow.focus();
-    return;
-  }
-  
+  if (homeWindow) return homeWindow.focus();
+
   homeWindow = new BrowserWindow({
     width: 800,
     height: 600,
@@ -93,30 +83,26 @@ function createHomeWindow() {
     minHeight: 400,
     webPreferences: {
       nodeIntegration: true,
-      contextIsolation: false,
-      enableRemoteModule: false,
+      contextIsolation: false
     },
-    title: 'RACE 2025 - Home',
-    resizable: true, 
+    title: "RACE 2025 - Home",
+    resizable: true
   });
 
-  homeWindow.loadURL(`file://${path.join(__dirname, 'home.html')}`);
+  homeWindow.loadFile("home.html");
 
-  homeWindow.on('closed', () => { 
-    homeWindow = null; 
+  homeWindow.on("closed", () => {
+    homeWindow = null;
     if (!loginWindow && !raceWindow) app.quit();
   });
 }
 
-/**
- * Creates the Race (Index) window in a new, separate window.
- */
+// ---------------------------------------------------------------
+// RACE WINDOW (index.html) – OPENED AS NEW WINDOW
+// ---------------------------------------------------------------
 function createRaceWindow() {
-  if (raceWindow) {
-    raceWindow.focus();
-    return;
-  }
-  
+  if (raceWindow) return raceWindow.focus();
+
   raceWindow = new BrowserWindow({
     width: 1200,
     height: 800,
@@ -124,197 +110,138 @@ function createRaceWindow() {
     minHeight: 600,
     webPreferences: {
       nodeIntegration: true,
-      contextIsolation: false,
-      enableRemoteModule: false,
+      contextIsolation: false
     },
-    title: 'RACE 2025 - Case Rate Search',
+    title: "RACE 2025 - Case Rate Search",
+    resizable: true
   });
 
-  // Pass data paths to the renderer via URL query parameters
-  const startUrl = `file://${path.join(__dirname, 'index.html')}?db_path=${encodeURIComponent(dbPath)}&req_path=${encodeURIComponent(reqPath)}`;
+  const startUrl =
+    `file://${path.join(__dirname, "index.html")}?db_path=${encodeURIComponent(dbPath)}`;
+
   raceWindow.loadURL(startUrl);
 
-  raceWindow.on('closed', () => { 
-    raceWindow = null; 
+  raceWindow.on("closed", () => {
+    raceWindow = null;
     if (!loginWindow && !homeWindow) app.quit();
   });
 }
 
-// --- APP LIFECYCLE HANDLERS ---
-app.on('ready', createLoginWindow); // Start with the Login Window
+// ---------------------------------------------------------------
+// APP LIFECYCLE
+// ---------------------------------------------------------------
+app.whenReady().then(createLoginWindow);
 
-app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
-    app.quit();
-  }
+app.on("window-all-closed", () => {
+  if (process.platform !== "darwin") app.quit();
 });
 
-app.on('activate', () => {
-  if (BrowserWindow.getAllWindows().length === 0) {
-    createLoginWindow();
-  }
+app.on("activate", () => {
+  if (BrowserWindow.getAllWindows().length === 0) createLoginWindow();
 });
 
-
-// ===============================================
-// IPC MAIN HANDLERS
-// ===============================================
-
-// 1. OPEN HOME WINDOW HANDLER (Triggered by login.html after successful auth)
-// ACTION: Close Login, Open Home
-ipcMain.on("open-home-window", (event) => {
-    console.log('IPC: Opening Home Window...');
-    createHomeWindow();
-    
-    if (loginWindow) {
-        loginWindow.close();
-        loginWindow = null; 
-    }
+// ---------------------------------------------------------------
+// IPC HANDLERS
+// ---------------------------------------------------------------
+ipcMain.on("open-home-window", () => {
+  createHomeWindow();
+  if (loginWindow) loginWindow.close();
 });
 
-// 2. OPEN RACE WINDOW HANDLER (Triggered by home.html "Let's Race" button)
-// ACTION: Open Race in NEW window, Keep Home Open
-ipcMain.on("open-race-window", (event) => {
-    console.log('IPC: Opening Race Window...');
-    createRaceWindow();
-    
-    if (homeWindow) {
-        homeWindow.focus(); 
-    }
+ipcMain.on("open-race-window", () => {
+  createRaceWindow();
+  if (homeWindow) homeWindow.focus();
 });
 
-// 3. UNIVERSAL CLOSE WINDOW HANDLER
 ipcMain.on("close-window", (event) => {
-    console.log('IPC: Closing window...');
-    const window = BrowserWindow.fromWebContents(event.sender);
-    if (window) window.close();
+  const win = BrowserWindow.fromWebContents(event.sender);
+  if (win) win.close();
 });
 
-// 4. READ DATA FROM DISK (Called by renderer processes)
-ipcMain.handle('get-data', async (event, fileName) => {
+// Read from database.json / requirements.json
+ipcMain.handle("get-data", async (event, fileName) => {
   try {
-    const dataPath = fileName === 'database.json' ? dbPath : reqPath;
-    const data = fs.readFileSync(dataPath, 'utf-8');
-    return data;
-  } catch (error) {
-    console.error(`Failed to read ${fileName}:`, error);
-    return '[]';
+    const p = fileName === "database.json" ? dbPath : reqPath;
+    return fs.readFileSync(p, "utf8");
+  } catch (err) {
+    console.error(`Error reading ${fileName}:`, err);
+    return "[]";
   }
 });
 
-// --- IPC HANDLER FOR UPLOADING DOCUMENTS (ADMIN.HTML) ---
-ipcMain.handle('upload-document', async (event) => {
-  const targetWindow = raceWindow || homeWindow || loginWindow; 
-  if (!targetWindow) return null;
-
-  const file = await dialog.showOpenDialog(targetWindow, {
-    title: 'Select document to upload',
-    properties: ['openFile'],
-    filters: [
-      { name: 'Documents', extensions: ['pdf', 'docx', 'xlsx', 'xls', 'png', 'jpg', 'jpeg'] }
-    ]
+// Upload documents
+ipcMain.handle("upload-document", async () => {
+  const active = raceWindow || homeWindow || loginWindow;
+  const file = await dialog.showOpenDialog(active, {
+    properties: ["openFile"],
+    filters: [{ name: "Documents", extensions: ["pdf", "docx", "xlsx", "png", "jpg", "jpeg"] }]
   });
-  if (file.canceled) return null;
 
-  const sourcePath = file.filePaths[0];
-  const fileName = path.basename(sourcePath);
-  const destPath = path.join(docsDir, fileName); // Copy to AppData/uploads
-  fs.copyFileSync(sourcePath, destPath);
-  return { name: fileName, time: fs.statSync(destPath).mtime.getTime() };
+  if (file.canceled) return null;
+  const src = file.filePaths[0];
+  const dest = path.join(docsDir, path.basename(src));
+  fs.copyFileSync(src, dest);
+
+  return { name: path.basename(src), time: fs.statSync(dest).mtime.getTime() };
 });
 
 // List uploaded files
-ipcMain.handle('list-files', () => {
+ipcMain.handle("list-files", () => {
   if (!fs.existsSync(docsDir)) return [];
-  return fs.readdirSync(docsDir).map(f => ({
-    name: f,
-    time: fs.statSync(path.join(docsDir, f)).mtime.getTime()
+  return fs.readdirSync(docsDir).map(name => ({
+    name,
+    time: fs.statSync(path.join(docsDir, name)).mtime.getTime()
   }));
 });
 
-// Rename file
-ipcMain.handle('rename-file', (event, oldName, newName) => {
-  const oldPath = path.join(docsDir, oldName);
-  const newPath = path.join(docsDir, newName);
-  
-  if (fs.existsSync(oldPath)) {
-    fs.renameSync(oldPath, newPath);
-    return true;
-  }
-  return false;
+// Rename
+ipcMain.handle("rename-file", (event, oldName, newName) => {
+  const oldP = path.join(docsDir, oldName);
+  const newP = path.join(docsDir, newName);
+  if (!fs.existsSync(oldP)) return false;
+  fs.renameSync(oldP, newP);
+  return true;
 });
 
-// Delete file
-ipcMain.handle('delete-file', (event, fileName) => {
-  const filePath = path.join(docsDir, fileName);
-  if (fs.existsSync(filePath)) {
-    fs.unlinkSync(filePath);
-    return true;
-  }
-  return false;
+// Delete
+ipcMain.handle("delete-file", (event, name) => {
+  const p = path.join(docsDir, name);
+  if (fs.existsSync(p)) fs.unlinkSync(p);
+  return true;
 });
 
-// Open file in default system application
-ipcMain.on('open-file', (event, fileName) => {
-  const filePath = path.join(docsDir, fileName);
-  if (fs.existsSync(filePath)) {
-    shell.openPath(filePath);
-  }
+// Open file
+ipcMain.on("open-file", (event, name) => {
+  const p = path.join(docsDir, name);
+  if (fs.existsSync(p)) shell.openPath(p);
 });
 
-// Export data (e.g., database.json)
-ipcMain.handle('export-data', async (event, fileName, dataContent) => {
-  const targetWindow = raceWindow || homeWindow || loginWindow; 
-  if (!targetWindow) return null;
-
-  const { filePath } = await dialog.showSaveDialog(targetWindow, {
-    title: `Export ${fileName}`,
-    defaultPath: path.join(app.getPath('downloads'), fileName),
-    buttonLabel: 'Save',
-    filters: [
-        { name: 'JSON Files', extensions: ['json'] }
-    ]
+// Export
+ipcMain.handle("export-data", async (event, fileName, content) => {
+  const active = raceWindow || homeWindow || loginWindow;
+  const { filePath } = await dialog.showSaveDialog(active, {
+    defaultPath: path.join(app.getPath("downloads"), fileName)
   });
-  
-  if (filePath) {
-    fs.writeFileSync(filePath, dataContent);
-    return true;
-  }
-  return false;
+  if (filePath) fs.writeFileSync(filePath, content);
+  return true;
 });
 
-// Import/Update Data (e.g., database.json)
-ipcMain.handle('import-data', async (event, fileName) => {
-  const targetWindow = raceWindow || homeWindow || loginWindow; 
-  if (!targetWindow) return null;
-
-  const { canceled, filePaths } = await dialog.showOpenDialog(targetWindow, {
-    title: `Select new ${fileName} file`,
-    properties: ['openFile'],
-    filters: [
-      { name: 'JSON Data', extensions: ['json'] }
-    ]
+// Import
+ipcMain.handle("import-data", async (event, fileName) => {
+  const active = raceWindow || homeWindow || loginWindow;
+  const { canceled, filePaths } = await dialog.showOpenDialog(active, {
+    properties: ["openFile"],
+    filters: [{ name: "JSON", extensions: ["json"] }]
   });
-  
-  if (canceled || filePaths.length === 0) return null;
 
-  const sourcePath = filePaths[0];
-  const destPath = fileName === 'database.json' ? dbPath : reqPath;
-  
-  try {
-    const content = fs.readFileSync(sourcePath, 'utf-8');
-    JSON.parse(content); 
-    
-    fs.copyFileSync(sourcePath, destPath);
-    
-    return content;
-  } catch (e) {
-    dialog.showMessageBox(targetWindow, {
-      type: 'error',
-      title: 'Import Error',
-      message: `Failed to import ${fileName}. The file may not be valid JSON.`
-    });
-    return null;
-  }
+  if (canceled) return null;
+
+  const src = filePaths[0];
+  const dest = fileName === "database.json" ? dbPath : reqPath;
+  const content = fs.readFileSync(src, "utf8");
+
+  JSON.parse(content); // validation
+
+  fs.copyFileSync(src, dest);
+  return content;
 });
-
