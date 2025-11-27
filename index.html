@@ -153,6 +153,12 @@
     font-size:0.9em;
   }
 
+  .req-missing {
+    color:#ff5555;
+    margin-top:8px;
+    font-weight:bold;
+  }
+
   .req-check {
     margin-top:6px;
     font-size:0.9em;
@@ -184,7 +190,9 @@ if (typeof require !== "undefined") {
     ipcRenderer = electron.ipcRenderer;
     fs = require("fs");
     isElectron = true;
-  } catch (e) {}
+  } catch (e) {
+    console.warn("Electron unavailable:", e);
+  }
 }
 
 let dbData = [];
@@ -216,23 +224,24 @@ function renderRequirements(req) {
 
   let html = `<div class="requirements-block"><strong>Requirements</strong>`;
 
-  // Reminders
+  // Reminders text
   const reminder = req["REMINDER/REQUIREMENTS"];
-  if (reminder) {
-    const fixedText = reminder.replace(/\\n/g, "<br>").replace(/\n/g, "<br>");
-    html += `<div class="req-reminder">${fixedText}</div>`;
+  if (reminder && reminder.trim() !== "") {
+    const text = reminder.replace(/\\n/g, "<br>").replace(/\n/g, "<br>");
+    html += `<div class="req-reminder">${text}</div>`;
+  } else {
+    html += `<div class="req-missing">❌ No reminders provided.</div>`;
   }
 
-  // Checklist
+  // Other requirement fields
   Object.keys(req).forEach(key => {
     if (key === "REMINDER/REQUIREMENTS") return;
-    if (key.includes("Unnamed")) return;  // 🟢 Ignore Unnamed fields
 
     const val = Number(req[key]);
-    const good = val === 1 ? "✔️" : "❌";
+    const ok = val === 1 ? "✔️" : "❌";
     const css = val === 1 ? "req-ok" : "req-bad";
 
-    html += `<div class="req-check ${css}">${good} ${key}</div>`;
+    html += `<div class="req-check ${css}">${ok} ${key}</div>`;
   });
 
   html += `</div>`;
@@ -245,9 +254,8 @@ function executeSearch() {
   const container = document.getElementById("resultsContainer");
   container.innerHTML = "";
 
-  if (q.length < 1) {
-    container.innerHTML =
-      `<div style="text-align:center;color:var(--muted-color);padding:20px;">Type to search...</div>`;
+  if (q.length < 2) {
+    container.innerHTML = `<div style="text-align:center;color:var(--muted-color);padding:20px;">Enter at least 2 characters.</div>`;
     return;
   }
 
@@ -257,8 +265,7 @@ function executeSearch() {
   );
 
   if (results.length === 0) {
-    container.innerHTML =
-      `<div style="text-align:center;color:var(--muted-color);padding:20px;">No results found.</div>`;
+    container.innerHTML = `<div style="text-align:center;color:var(--muted-color);padding:20px;">No results found.</div>`;
     return;
   }
 
@@ -275,48 +282,41 @@ function executeSearch() {
         <div class="rate-item"><strong>Professional</strong>${item.professional || "-"}</div>
       </div>
 
-     ${renderRequirements(
-    item.requirements ||
-    item.Requirements ||
-    item.REQUIREMENTS ||
-    item.req ||
-    item.Req ||
-    item.REQ ||
-    Object.keys(item).find(k => k.toLowerCase().includes("require")) ? item[Object.keys(item).find(k => k.toLowerCase().includes("require"))] : null
-)}
+      ${renderRequirements(item.requirements)}
+    `;
+
+    container.appendChild(card);
+  });
 }
 
 /* INIT */
 document.addEventListener("DOMContentLoaded", () => {
   loadDatabase();
 
-  /* Auto-search */
-  document.getElementById("searchBar").addEventListener("input", executeSearch);
-
+  // Search
   document.getElementById("searchBtn").onclick = executeSearch;
+  document.getElementById("searchBar").onkeydown = e => { if (e.key === "Enter") executeSearch(); };
 
-  /* Theme toggle */
+  // Theme toggle
   document.getElementById("themeToggle").onclick = () => {
-    const mode = !document.body.classList.contains("light");
-    document.body.classList.toggle("light", mode);
-    document.getElementById("themeToggle").textContent = mode ? "🌙" : "☀️";
+    const light = !document.body.classList.contains("light");
+    document.body.classList.toggle("light", light);
+    document.getElementById("themeToggle").textContent = light ? "🌙" : "☀️";
   };
 
-  /* Color picker */
-  document.getElementById("colorPicker").addEventListener("input", e => {
-    document.documentElement.style.setProperty("--accent-color", e.target.value);
-  });
-
-  /* Calculator */
-  document.getElementById("calcBtn").onclick = () =>
+  // Calculator button
+  document.getElementById("calcBtn").onclick = () => {
     window.open("https://www.calculator.net/date-calculator.html", "_blank");
+  };
 
+  // ALT + SHIFT + C shortcut
   document.addEventListener("keydown", e => {
-    if (e.altKey && e.shiftKey && (e.key === "c" || e.key === "C"))
+    if (e.altKey && e.shiftKey && (e.key === "c" || e.key === "C")) {
       window.open("https://www.calculator.net/date-calculator.html", "_blank");
+    }
   });
 
-  /* Close window */
+  // Close window
   document.getElementById("closeBtn").onclick = () => {
     if (isElectron) ipcRenderer.send("close-window");
     else window.close();
@@ -354,4 +354,3 @@ document.addEventListener("DOMContentLoaded", () => {
 </div>
 </body>
 </html>
-
