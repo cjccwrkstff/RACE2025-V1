@@ -275,11 +275,15 @@ function executeSearch() {
         <div class="rate-item"><strong>Professional</strong>${item.professional || "-"}</div>
       </div>
 
-      ${renderRequirements(item.requirements)}
-    `;
-
-    container.appendChild(card);
-  });
+     ${renderRequirements(
+    item.requirements ||
+    item.Requirements ||
+    item.REQUIREMENTS ||
+    item.req ||
+    item.Req ||
+    item.REQ ||
+    Object.keys(item).find(k => k.toLowerCase().includes("require")) ? item[Object.keys(item).find(k => k.toLowerCase().includes("require"))] : null
+)}
 }
 
 /* INIT */
@@ -350,3 +354,4 @@ document.addEventListener("DOMContentLoaded", () => {
 </div>
 </body>
 </html>
+
