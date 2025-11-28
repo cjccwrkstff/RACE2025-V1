@@ -170,27 +170,29 @@
 
         /* --- Login Handler --- */
         form.addEventListener('submit', (e) => {
-            e.preventDefault();
-            errorMessage.classList.add('hidden');
+    e.preventDefault();
+    errorMessage.classList.add('hidden');
 
-            const username = document.getElementById('username').value.trim().toLowerCase();
-            const password = document.getElementById('password').value.trim();
+    const username = document.getElementById('username').value.trim().toLowerCase();
+    const password = document.getElementById('password').value.trim();
 
-            // UPDATED VALIDATION: Accepts 'biller'/'00' or 'admin'/'11'
-            if ((username === 'biller' && password === '00') || (username === 'admin' && password === '11')) {
-                // SUCCESS: Tell main process to close this window and open home.html
-                if (isElectron && ipcRenderer) {
-                    ipcRenderer.send('open-home-window');
-                } else {
-                    // Browser fallback: direct redirect
-                    window.location.href = 'home.html';
-                }
-            } else {
-                // FAILURE
-                errorMessage.classList.remove('hidden');
-            }
-        });
+    if (username === 'biller' && password === '00') {
+        if (isElectron && ipcRenderer) ipcRenderer.send('open-home-window');
+        else window.location.href = 'home.html';
+        return;
+    }
+
+    if (username === 'admin' && password === '11') {
+        if (isElectron && ipcRenderer) ipcRenderer.send('open-admin-window');
+        else window.location.href = 'admin.html';
+        return;
+    }
+
+    // Invalid login
+    errorMessage.classList.remove('hidden');
+});
 
     </script>
 </body>
 </html>
+
