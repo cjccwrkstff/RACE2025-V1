@@ -201,8 +201,14 @@ async function loadDatabase() {
     dbData = JSON.parse(fs.readFileSync(dbPath, "utf8"));
 
     document.getElementById("loadingText").style.display = "none";
-    document.getElementById("searchBar").disabled = false;
+
+    // IMPORTANT FIX: enable before search triggers
+    const sb = document.getElementById("searchBar");
+    sb.disabled = false;
     document.getElementById("searchBtn").disabled = false;
+
+    // Auto-run search once database loads
+    executeSearch();
 
   } catch (err) {
     document.getElementById("resultsContainer").innerHTML =
@@ -216,23 +222,31 @@ function renderRequirements(req) {
 
   let html = `<div class="requirements-block"><strong>Requirements</strong>`;
 
-  // Reminders
+  // Reminders text
   const reminder = req["REMINDER/REQUIREMENTS"];
-  if (reminder) {
-    const fixedText = reminder.replace(/\\n/g, "<br>").replace(/\n/g, "<br>");
-    html += `<div class="req-reminder">${fixedText}</div>`;
+  if (reminder && reminder.trim() !== "") {
+    const fixed = reminder.replace(/\\n/g, "<br>").replace(/\n/g, "<br>");
+    html += `<div class="req-reminder">${fixed}</div>`;
   }
 
-  // Checklist
+  // Keys to exclude
+  const skipKeys = [
+    "Codes",
+    "Description",
+    "First Case Rate",
+    "Unnamed: 3",
+    "Unnamed: 4",
+    "REMINDER/REQUIREMENTS"
+  ];
+
   Object.keys(req).forEach(key => {
-    if (key === "REMINDER/REQUIREMENTS") return;
-    if (key.includes("Unnamed")) return;  // 🟢 Ignore Unnamed fields
+    if (skipKeys.includes(key)) return;
 
-    const val = Number(req[key]);
-    const good = val === 1 ? "✔️" : "❌";
-    const css = val === 1 ? "req-ok" : "req-bad";
+    const num = Number(req[key]);
+    const isOK = num === 1;
+    const icon = isOK ? "✔️" : "❌";
 
-    html += `<div class="req-check ${css}">${good} ${key}</div>`;
+    html += `<div class="req-check ${isOK ? "req-ok" : "req-bad"}">${icon} ${key}</div>`;
   });
 
   html += `</div>`;
@@ -286,7 +300,7 @@ function executeSearch() {
 document.addEventListener("DOMContentLoaded", () => {
   loadDatabase();
 
-  /* Auto-search */
+  // Auto-search as user types
   document.getElementById("searchBar").addEventListener("input", executeSearch);
 
   document.getElementById("searchBtn").onclick = executeSearch;
