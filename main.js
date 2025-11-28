@@ -12,7 +12,6 @@ let raceWindow;
 // --- CRITICAL PATHS ---
 const appDataPath = app.getPath("userData");
 const dbPath = path.join(appDataPath, "database.json");
-const reqPath = path.join(appDataPath, "requirements.json");
 const docsDir = path.join(appDataPath, "uploads");
 
 // ---------------------------------------------------------------
@@ -71,7 +70,7 @@ function createLoginWindow() {
 }
 
 // ---------------------------------------------------------------
-// HOME WINDOW (AFTER LOGIN)
+// HOME AND ADMIN WINDOW (AFTER LOGIN)
 // ---------------------------------------------------------------
 function createHomeWindow() {
   if (homeWindow) return homeWindow.focus();
@@ -96,7 +95,26 @@ function createHomeWindow() {
     if (!loginWindow && !raceWindow) app.quit();
   });
 }
+function createAdminWindow() {
+    adminWindow = new BrowserWindow({
+        width: 1000,
+        height: 700,
+        minWidth: 800,
+        minHeight: 600,
+        webPreferences: {
+            nodeIntegration: true,
+            contextIsolation: false,
+        },
+        title: "RACE 2025 - Admin Panel",
+        resizable: true
+    });
 
+    adminWindow.loadURL(`file://${path.join(__dirname, 'admin.html')}`);
+
+    adminWindow.on('closed', () => {
+        adminWindow = null;
+    });
+}
 // ---------------------------------------------------------------
 // RACE WINDOW (index.html) – OPENED AS NEW WINDOW
 // ---------------------------------------------------------------
@@ -153,9 +171,21 @@ ipcMain.on("open-race-window", () => {
   if (homeWindow) homeWindow.focus();
 });
 
+
+
 ipcMain.on("close-window", (event) => {
   const win = BrowserWindow.fromWebContents(event.sender);
   if (win) win.close();
+});
+
+ipcMain.on("open-admin-window", () => {
+    console.log("Opening admin panel...");
+    createAdminWindow();
+
+    if (loginWindow) {
+        loginWindow.close();
+        loginWindow = null;
+    }
 });
 
 // Read from database.json / requirements.json
@@ -245,3 +275,4 @@ ipcMain.handle("import-data", async (event, fileName) => {
   fs.copyFileSync(src, dest);
   return content;
 });
+
