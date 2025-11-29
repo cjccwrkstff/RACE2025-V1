@@ -258,49 +258,65 @@ async function loadDatabase() {
         throw new Error(`Case Rate Database file not found at: ${dbPath}`);
     }
     
-    // CRITICAL FIX: Use fs.promises.readFile (async) instead of fs.readFileSync (sync)
-    // to prevent freezing the main thread.
+    // Use fs.promises.readFile (async) to prevent freezing the main thread.
     const fileContent = await fs.promises.readFile(dbPath, "utf8");
     dbData = JSON.parse(fileContent); 
 
+    // Update UI state after successful load
     document.getElementById("loadingText").style.display = "none";
     document.getElementById("searchBar").disabled = false;
     document.getElementById("searchBtn").disabled = false;
     document.getElementById("searchBar").focus();
 
   } catch (err) {
+    console.error("Database Load Error:", err);
+    document.getElementById("loadingText").style.display = "none"; // Hide loading text
     document.getElementById("resultsContainer").innerHTML =
       `<div style="color:#ff5555;padding:20px;">
         <h3 style="color:#ff5555;">Database Load Error</h3>
         <p>Could not load the PhilHealth Case Rate data.</p>
         <pre style="white-space:pre-wrap;word-break:break-all;font-size:0.9em;">${err.message}</pre>
-        <p style="font-size:0.9em;">If running in Electron, ensure 'database.json' is correctly bundled and the path is passed to the window URL.</p>
+        <p style="font-size:0.9em;">Ensure the 'database.json' file is valid JSON and located correctly.</p>
     </div>`;
   }
 }
 
 /* REQUIREMENTS RENDERER */
 function renderRequirements(req) {
-  // CRITICAL: Check if req is a valid object before proceeding
-  if (!req || typeof req !== 'object' || Array.isArray(req)) return "";
+  // FIX 1: Ensure req is a valid object before proceeding
+  if (!req || typeof req !== 'object' || Array.isArray(req)) {
+    return `
+      <div class="requirements-block">
+        <strong>Requirements & Reminders</strong>
+        <div class="req-missing">
+          Requirements data is missing or improperly formatted for this code.
+        </div>
+      </div>
+    `;
+  }
 
   let html = `<div class="requirements-block"><strong>Requirements & Reminders</strong>`;
+  let hasSpecificRequirements = false;
 
   // 1. Check for the REMINDER/REQUIREMENTS field (The long text field)
-  const reminderText = req["REMINDER/REQUIREMENTS"];
-  if (reminderText) {
+  // Using bracket notation for potentially tricky keys
+  const reminderText = req["REMINDER/REQUIREMENTS"] || req["REMINDER"] || req["REQUIREMENTS"];
+
+  if (reminderText && String(reminderText).trim() !== "") {
+    // Escape and clean the string data
     const txt = String(reminderText)
       .replace(/\\n/g,"<br>")
-      .replace(/\n/g,"<br>");
+      .replace(/\n/g,"<br>")
+      .trim();
+
     html += `<div class="req-reminder">${txt}</div>`;
-  } else {
-    html += `<div class="req-missing">No specific reminders found for this code.</div>`;
-  }
+    hasSpecificRequirements = true;
+  } 
 
   // 2. Check for other requirements (CF3, CF4, XRAY, etc.)
   Object.keys(req).forEach(key => {
-    // Ignore keys that might be metadata or auto-generated indices
-    if (key.includes("Unnamed") || key === "REMINDER/REQUIREMENTS") return; 
+    // Ignore keys that might be metadata or the large text field already handled
+    if (key.includes("Unnamed") || key.includes("REMINDER") || key.includes("REQUIREMENTS")) return; 
 
     // Assume 1 means required, 0 or null/undefined means not required
     const val = Number(req[key]) || 0; 
@@ -308,7 +324,12 @@ function renderRequirements(req) {
     const css = val === 1 ? "req-ok" : "req-bad";
 
     html += `<div class="req-check ${css}">${statusText}: ${key}</div>`;
+    hasSpecificRequirements = true;
   });
+
+  if (!hasSpecificRequirements) {
+    html += `<div class="req-missing">No specific requirement flags found (e.g., CF3, XRAY). Check code details.</div>`;
+  }
 
   html += `</div>`;
   return html;
@@ -341,11 +362,15 @@ function executeSearch() {
     const card = document.createElement("div");
     card.classList.add("result-card");
 
-    // Access the requirements object directly
     const req = item.requirements || null; 
     
-    // Currency Formatting (Fixed: ensures ₱ is added once)
-    const formatRate = (value) => `₱${(Number(value) || 0).toLocaleString()}`;
+    // FIX 2: Ensure the rate is always displayed correctly as a currency.
+    const formatRate = (value) => {
+        // Handle undefined/null/empty strings gracefully
+        const num = Number(value);
+        if (isNaN(num) || num === 0) return "-";
+        return `₱${num.toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
+    };
 
     card.innerHTML = `
       <h3>[${item.code || 'N/A'}] ${item.description || 'No Description'}</h3>
@@ -369,7 +394,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Search setup
   document.getElementById("searchBar").addEventListener('input', executeSearch);
-  document.getElementById("searchBtn").onclick = executeSearch;
+  document.getElementById("searchBtn").addEventListener('click', executeSearch); // FIX 3: Use addEventListener
 
   // Theme and Accent Color setup
   const themeToggle = document.getElementById("themeToggle");
@@ -390,17 +415,17 @@ document.addEventListener("DOMContentLoaded", () => {
   applyTheme(localStorage.getItem("race_theme") || "dark");
   applyAccent(localStorage.getItem("race_accent") || "#58a6ff");
 
-  themeToggle.onclick = () => {
+  themeToggle.addEventListener('click', () => { // FIX 3: Use addEventListener
     const nextMode = document.body.classList.contains("light") ? "dark" : "light";
     applyTheme(nextMode);
-  };
-  colorPicker.oninput = (e) => applyAccent(e.target.value);
+  });
+  colorPicker.addEventListener('input', (e) => applyAccent(e.target.value)); // FIX 3: Use addEventListener
 
 
   // Calculator button
-  document.getElementById("calcShortcut").onclick = () => {
+  document.getElementById("calcShortcut").addEventListener('click', () => { // FIX 3: Use addEventListener
     window.open("https://www.calculator.net/date-calculator.html", "_blank");
-  };
+  });
 
   // ALT + SHIFT + C shortcut
   document.addEventListener("keydown", e => {
@@ -410,10 +435,10 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   // Close window (Electron/Browser)
-  document.getElementById("closeBtn").onclick = () => {
+  document.getElementById("closeBtn").addEventListener('click', () => { // FIX 3: Use addEventListener
     if (isElectron && ipcRenderer) ipcRenderer.send("app-close");
     else window.close();
-  };
+  });
 });
 </script>
 </head>
