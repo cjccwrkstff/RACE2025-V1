@@ -216,7 +216,7 @@ async function loadDatabase() {
 
 /* REQUIREMENTS RENDERER */
 function renderRequirements(req) {
-  if (!req) return ""; // Returns empty string if requirements are null or undefined
+  ```javascript // CRITICAL: Check if req is a valid object before proceeding if (!req
 
   let html = `<div class="requirements-block"><strong>Requirements & Reminders</strong>`;
 
