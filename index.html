@@ -189,70 +189,64 @@ if (typeof require !== "undefined") {
 
 let dbData = [];
 
-/* Load database.json */
+/* Load database.json (Single Combined File) */
 async function loadDatabase() {
-  const params = new URLSearchParams(window.location.search);
-  const dbPath = params.get("db_path");
+  const params = new URLSearchParams(window.location.search);
+  const dbPath = params.get("db_path"); 
 
-  try {
-    if (!isElectron) throw new Error("Not in Electron.");
-    if (!fs.existsSync(dbPath)) throw new Error("Database not found.");
+  try {
+    if (!isElectron) throw new Error("Not running in Electron environment.");
+    
+    // 1. Load Single Combined Database
+    if (!fs.existsSync(dbPath)) throw new Error("Case Rate Database (database.json) not found.");
+    
+    // Data is loaded directly. We assume each item already contains the 'requirements' object.
+    dbData = JSON.parse(fs.readFileSync(dbPath, "utf8")); 
 
-    dbData = JSON.parse(fs.readFileSync(dbPath, "utf8"));
+    document.getElementById("loadingText").style.display = "none";
+    document.getElementById("searchBar").disabled = false;
+    document.getElementById("searchBtn").disabled = false;
+    document.getElementById("searchBar").focus(); // Added focus for better UX
 
-    document.getElementById("loadingText").style.display = "none";
-
-    // IMPORTANT FIX: enable before search triggers
-    const sb = document.getElementById("searchBar");
-    sb.disabled = false;
-    document.getElementById("searchBtn").disabled = false;
-
-    // Auto-run search once database loads
-    executeSearch();
-
-  } catch (err) {
-    document.getElementById("resultsContainer").innerHTML =
-      `<div style="color:red;padding:20px;">Database Load Error:<br>${err.message}</div>`;
-  }
+  } catch (err) {
+    document.getElementById("resultsContainer").innerHTML =
+      `<div style="color:red;padding:20px;">Database Load Error:<br>${err.message}</div>`;
+  }
 }
 
-/* REQUIREMENTS */
+/* REQUIREMENTS RENDERER */
 function renderRequirements(req) {
-  if (!req) return "";
+  if (!req) return ""; // Returns empty string if requirements are null or undefined
 
-  let html = `<div class="requirements-block"><strong>Requirements</strong>`;
+  let html = `<div class="requirements-block"><strong>Requirements & Reminders</strong>`;
 
-  // Reminders text
-  const reminder = req["REMINDER/REQUIREMENTS"];
-  if (reminder && reminder.trim() !== "") {
-    const fixed = reminder.replace(/\\n/g, "<br>").replace(/\n/g, "<br>");
-    html += `<div class="req-reminder">${fixed}</div>`;
-  }
+  // Check for the REMINDER/REQUIREMENTS field
+  if (req["REMINDER/REQUIREMENTS"]) {
+    const txt = String(req["REMINDER/REQUIREMENTS"])
+      .replace(/\\n/g,"<br>")
+      .replace(/\n/g,"<br>");
+    html += `<div class="req-reminder">${txt}</div>`;
+  } else {
+    html += `<div class="req-missing">No specific reminders found for this code.</div>`;
+  }
 
-  // Keys to exclude
-  const skipKeys = [
-    "Codes",
-    "Description",
-    "First Case Rate",
-    "Unnamed: 3",
-    "Unnamed: 4",
-    "REMINDER/REQUIREMENTS"
-  ];
+  // Check for other requirements (CF3, CF4, XRAY, etc.)
+  Object.keys(req).forEach(key => {
+    if (key.includes("Unnamed")) return;
+    if (key === "REMINDER/REQUIREMENTS") return;
 
-  Object.keys(req).forEach(key => {
-    if (skipKeys.includes(key)) return;
+    // Assume 1 means required, 0 or null/undefined means not required
+    const val = Number(req[key]) || 0; 
+    const statusText = val === 1 ? "✔️ Required" : "❌ Not Required";
+    const css = val === 1 ? "req-ok" : "req-bad";
 
-    const num = Number(req[key]);
-    const isOK = num === 1;
-    const icon = isOK ? "✔️" : "❌";
+    html += `<div class="req-check ${css}">${statusText}: ${key}</div>`;
+  });
 
-    html += `<div class="req-check ${isOK ? "req-ok" : "req-bad"}">${icon} ${key}</div>`;
-  });
-
-  html += `</div>`;
-  return html;
+  html += `</div>`;
+  return html;
 }
-
+  
 /* SEARCH */
 function executeSearch() {
   const q = document.getElementById("searchBar").value.trim().toLowerCase();
@@ -280,17 +274,20 @@ function executeSearch() {
     const card = document.createElement("div");
     card.classList.add("result-card");
 
-    card.innerHTML = `
-      <h3>[${item.code}] ${item.description}</h3>
+    // If the data is combined, the requirements object is accessed directly from the item
+    const req = item.requirements || null; 
 
-      <div class="rate-info">
-        <div class="rate-item"><strong>Case Rate</strong>${item.rate || "-"}</div>
-        <div class="rate-item"><strong>Facility</strong>${item.facility || "-"}</div>
-        <div class="rate-item"><strong>Professional</strong>${item.professional || "-"}</div>
-      </div>
+    card.innerHTML = `
+      <h3>[${item.code}] ${item.description}</h3>
 
-      ${renderRequirements(item.requirements)}
-    `;
+      <div class="rate-info">
+        <div class="rate-item"><strong>Case Rate</strong>₱${(item.rate || 0).toLocaleString()}</div>
+        <div class="rate-item"><strong>Facility</strong>₱${(item.facility || 0).toLocaleString()}</div>
+        <div class="rate-item"><strong>Professional</strong>₱${(item.professional || 0).toLocaleString()}</div>
+      </div>
+
+      ${renderRequirements(req)}
+    `;
 
     container.appendChild(card);
   });
@@ -364,3 +361,4 @@ document.addEventListener("DOMContentLoaded", () => {
 </div>
 </body>
 </html>
+
