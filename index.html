@@ -3,11 +3,18 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>RACE 2025 — PhilHealth Case Rate Search</title>
+<title>Rates and Codes Engine — PhilHealth Case Rate Search</title>
+
+<link rel="manifest" href="manifest.json">
+<script>
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('service-worker.js').catch(()=>{/* ignore */});
+  }
+</script>
 
 <style>
   /* Base Theme (Dark) */
-  :root {
+  :root{
     --bg-color:#0d1117;
     --text-color:#c9d1d9;
     --card-bg:#161b22;
@@ -15,7 +22,7 @@
     --accent-color:#58a6ff;
     --muted-color:#8b949e;
   }
-  body.light {
+  body.light{
     --bg-color:#f5f6fa;
     --text-color:#2f3640;
     --card-bg:#ffffff;
@@ -23,67 +30,87 @@
     --accent-color:#273c75;
     --muted-color:#555;
   }
-
-  body {
+  html,body{
+    height:100%;
     margin:0;
-    font-family:"Segoe UI",sans-serif;
+    font-family:"Segoe UI",Arial,Helvetica,sans-serif;
     background:var(--bg-color);
     color:var(--text-color);
+    transition:background .3s;
   }
-
-  .app-container {
+  
+  .app-container{
     max-width:900px;
     margin:0 auto;
     padding:20px;
     height:100vh;
     display:flex;
     flex-direction:column;
+    gap:15px;
   }
 
-  /* HEADER */
-  .header {
+  /* HEADER & UI ELEMENTS */
+  .header{
     display:flex;
     justify-content:space-between;
     align-items:center;
     padding-bottom:10px;
     border-bottom:1px solid var(--border-color);
-    margin-bottom:10px;
   }
 
-  .sub-header {
+  .sub-header{
     margin-top:-5px;
     font-size:14px;
     color:var(--muted-color);
-    margin-bottom:20px;
   }
 
-  .settings-panel {
+  .settings-panel{
     display:flex;
     gap:10px;
     align-items:center;
   }
 
-  .btn {
+  .btn{
     padding:8px 14px;
     background:var(--card-bg);
     border:1px solid var(--border-color);
     border-radius:6px;
     cursor:pointer;
     color:var(--text-color);
+    transition:background .2s, border-color .2s;
+    font-size:16px;
+    line-height:1;
   }
 
-  .btn:hover {
+  .btn:hover{
     background:var(--border-color);
   }
+  
+  #colorPicker{
+    -webkit-appearance:none;
+    -moz-appearance:none;
+    appearance:none;
+    width:32px;
+    height:32px;
+    border:1px solid var(--border-color);
+    border-radius:6px;
+    padding:0;
+    cursor:pointer;
+    background:var(--card-bg);
+    outline:none;
+  }
+  #colorPicker::-webkit-color-swatch-wrapper{padding:0;}
+  #colorPicker::-webkit-color-swatch{border:none;border-radius:4px;}
+  #colorPicker::-moz-color-swatch{border:none;border-radius:4px;}
+
 
   /* SEARCH */
-  .search-area {
+  .search-area{
     display:flex;
     gap:10px;
-    margin-bottom:15px;
   }
 
-  #searchBar {
+  #searchBar{
     flex-grow:1;
     padding:10px;
     border-radius:6px;
@@ -91,10 +118,15 @@
     background:var(--card-bg);
     color:var(--text-color);
     font-size:16px;
+    transition:border-color .2s;
+  }
+  #searchBar:focus{
+    border-color:var(--accent-color);
+    outline:none;
   }
 
   /* RESULTS */
-  .results-container {
+  .results-container{
     flex-grow:1;
     overflow-y:auto;
     background:var(--card-bg);
@@ -103,91 +135,109 @@
     border-radius:8px;
   }
 
-  .result-card {
+  .result-card{
     border:1px solid var(--border-color);
     border-radius:8px;
     padding:15px;
     margin-bottom:15px;
+    transition:border-color .2s;
+  }
+  .result-card:hover{
+    border-color:var(--accent-color);
   }
 
-  .result-card h3 {
+  .result-card h3{
     margin:0 0 10px 0;
     color:var(--accent-color);
     border-bottom:1px dashed var(--border-color);
     padding-bottom:8px;
   }
 
-  .rate-info {
+  .rate-info{
     display:flex;
     gap:25px;
     flex-wrap:wrap;
     margin-bottom:10px;
+    font-size:1.1em;
   }
 
-  .rate-item strong {
+  .rate-item strong{
     display:block;
-    font-size:0.85em;
+    font-size:0.8em;
     color:var(--muted-color);
   }
 
   /* REQUIREMENTS */
-  .requirements-block {
+  .requirements-block{
     margin-top:15px;
     border:1px solid var(--border-color);
     padding:12px;
     border-radius:6px;
-    background:#1f232b;
+    background:var(--border-color);
   }
 
-  .requirements-block strong {
+  .requirements-block strong{
     font-size:0.95em;
     color:var(--accent-color);
   }
 
-  .req-reminder {
+  .req-reminder{
     margin-top:8px;
     padding:10px;
-    background:rgba(255,165,0,0.12);
+    background:rgba(255,165,0,0.15); /* Slightly stronger orange background */
     border-left:4px solid orange;
     border-radius:4px;
     font-size:0.9em;
   }
 
-  .req-check {
+  .req-missing{
+    color:var(--muted-color);
+    margin-top:8px;
+    font-weight:normal;
+    font-style:italic;
+  }
+
+  .req-check{
     margin-top:6px;
     font-size:0.9em;
   }
 
-  .req-ok {
+  .req-ok{
     color:#57d77a;
   }
 
-  .req-bad {
+  .req-bad{
     color:#ff5555;
   }
 
-  .loading-message {
+  .loading-message{
     text-align:center;
     margin-top:40px;
     color:var(--muted-color);
+    font-size:1.2em;
   }
 </style>
 
 <script>
 let fs = null;
+let path = null; // Need path for join
 let ipcRenderer = null;
 let isElectron = false;
+let dbData = [];
 
+// Try to load Electron/Node modules
 if (typeof require !== "undefined") {
-  try {
-    const electron = require("electron");
-    ipcRenderer = electron.ipcRenderer;
-    fs = require("fs");
-    isElectron = true;
-  } catch (e) {}
+  try {
+    const electron = require("electron");
+    ipcRenderer = electron.ipcRenderer;
+    fs = require("fs");
+    path = require("path");
+    isElectron = true;
+  } catch (e) {
+    console.warn("Electron/Node modules unavailable:", e.message);
+  }
 }
 
-let dbData = [];
 
 /* Load database.json (Single Combined File) */
 async function loadDatabase() {
@@ -195,34 +245,51 @@ async function loadDatabase() {
   const dbPath = params.get("db_path"); 
 
   try {
-    if (!isElectron) throw new Error("Not running in Electron environment.");
+    if (!isElectron) {
+        throw new Error("Not running in Electron environment. Cannot load local database.");
+    }
+    
+    if (!dbPath) {
+        throw new Error("Database path (db_path) is missing from URL parameters.");
+    }
+    
+    // Check if the file exists using synchronous check (this is fast)
+    if (!fs.existsSync(dbPath)) {
+        throw new Error(`Case Rate Database file not found at: ${dbPath}`);
+    }
     
-    // 1. Load Single Combined Database
-    if (!fs.existsSync(dbPath)) throw new Error("Case Rate Database (database.json) not found.");
-    
-    // Data is loaded directly. We assume each item already contains the 'requirements' object.
-    dbData = JSON.parse(fs.readFileSync(dbPath, "utf8")); 
+    // CRITICAL FIX: Use fs.promises.readFile (async) instead of fs.readFileSync (sync)
+    // to prevent freezing the main thread.
+    const fileContent = await fs.promises.readFile(dbPath, "utf8");
+    dbData = JSON.parse(fileContent); 
 
     document.getElementById("loadingText").style.display = "none";
     document.getElementById("searchBar").disabled = false;
     document.getElementById("searchBtn").disabled = false;
-    document.getElementById("searchBar").focus(); // Added focus for better UX
+    document.getElementById("searchBar").focus();
 
   } catch (err) {
     document.getElementById("resultsContainer").innerHTML =
-      `<div style="color:red;padding:20px;">Database Load Error:<br>${err.message}</div>`;
+      `<div style="color:#ff5555;padding:20px;">
+        <h3 style="color:#ff5555;">Database Load Error</h3>
+        <p>Could not load the PhilHealth Case Rate data.</p>
+        <pre style="white-space:pre-wrap;word-break:break-all;font-size:0.9em;">${err.message}</pre>
+        <p style="font-size:0.9em;">If running in Electron, ensure 'database.json' is correctly bundled and the path is passed to the window URL.</p>
+    </div>`;
   }
 }
 
 /* REQUIREMENTS RENDERER */
 function renderRequirements(req) {
-  ```javascript // CRITICAL: Check if req is a valid object before proceeding if (!req
+  // CRITICAL: Check if req is a valid object before proceeding
+  if (!req || typeof req !== 'object' || Array.isArray(req)) return "";
 
   let html = `<div class="requirements-block"><strong>Requirements & Reminders</strong>`;
 
-  // Check for the REMINDER/REQUIREMENTS field
-  if (req["REMINDER/REQUIREMENTS"]) {
-    const txt = String(req["REMINDER/REQUIREMENTS"])
+  // 1. Check for the REMINDER/REQUIREMENTS field (The long text field)
+  const reminderText = req["REMINDER/REQUIREMENTS"];
+  if (reminderText) {
+    const txt = String(reminderText)
       .replace(/\\n/g,"<br>")
       .replace(/\n/g,"<br>");
     html += `<div class="req-reminder">${txt}</div>`;
@@ -230,10 +297,10 @@ function renderRequirements(req) {
     html += `<div class="req-missing">No specific reminders found for this code.</div>`;
   }
 
-  // Check for other requirements (CF3, CF4, XRAY, etc.)
+  // 2. Check for other requirements (CF3, CF4, XRAY, etc.)
   Object.keys(req).forEach(key => {
-    if (key.includes("Unnamed")) return;
-    if (key === "REMINDER/REQUIREMENTS") return;
+    // Ignore keys that might be metadata or auto-generated indices
+    if (key.includes("Unnamed") || key === "REMINDER/REQUIREMENTS") return; 
 
     // Assume 1 means required, 0 or null/undefined means not required
     const val = Number(req[key]) || 0; 
@@ -246,87 +313,107 @@ function renderRequirements(req) {
   html += `</div>`;
   return html;
 }
-  
+
 /* SEARCH */
 function executeSearch() {
-  const q = document.getElementById("searchBar").value.trim().toLowerCase();
-  const container = document.getElementById("resultsContainer");
-  container.innerHTML = "";
+  const q = document.getElementById("searchBar").value.trim().toLowerCase();
+  const container = document.getElementById("resultsContainer");
+  container.innerHTML = "";
 
-  if (q.length < 1) {
-    container.innerHTML =
-      `<div style="text-align:center;color:var(--muted-color);padding:20px;">Type to search...</div>`;
-    return;
-  }
+  if (q.length < 2) {
+    container.innerHTML =
+      `<div style="text-align:center;color:var(--muted-color);padding:20px;">Enter at least 2 characters to search by ICD Code or Description.</div>`;
+    return;
+  }
 
-  const results = dbData.filter(item =>
-    String(item.code || "").toLowerCase().includes(q) ||
-    String(item.description || "").toLowerCase().includes(q)
-  );
+  const results = dbData.filter(item =>
+    String(item.code || "").toLowerCase().includes(q) ||
+    String(item.description || "").toLowerCase().includes(q)
+  );
 
-  if (results.length === 0) {
-    container.innerHTML =
-      `<div style="text-align:center;color:var(--muted-color);padding:20px;">No results found.</div>`;
-    return;
-  }
+  if (results.length === 0) {
+    container.innerHTML =
+      `<div style="text-align:center;color:var(--muted-color);padding:20px;">No results found for "${q}".</div>`;
+    return;
+  }
 
-  results.slice(0, 50).forEach(item => {
-    const card = document.createElement("div");
-    card.classList.add("result-card");
+  results.slice(0, 50).forEach(item => {
+    const card = document.createElement("div");
+    card.classList.add("result-card");
 
-    const req = item.requirements || null;
+    // Access the requirements object directly
+    const req = item.requirements || null; 
+    
+    // Currency Formatting (Fixed: ensures ₱ is added once)
+    const formatRate = (value) => `₱${(Number(value) || 0).toLocaleString()}`;
 
     card.innerHTML = `
-      <h3>[${item.code}] ${item.description}</h3>
+      <h3>[${item.code || 'N/A'}] ${item.description || 'No Description'}</h3>
 
       <div class="rate-info">
-        <div class="rate-item"><strong>Case Rate</strong>${item.rate || "-"}</div>
-        <div class="rate-item"><strong>Facility</strong>${item.facility || "-"}</div>
-        <div class="rate-item"><strong>Professional</strong>${item.professional || "-"}</div>
+        <div class="rate-item"><strong>Case Rate</strong>${formatRate(item.rate)}</div>
+        <div class="rate-item"><strong>Facility</strong>${formatRate(item.facility)}</div>
+        <div class="rate-item"><strong>Professional</strong>${formatRate(item.professional)}</div>
       </div>
 
       ${renderRequirements(req)}
     `;
 
-    container.appendChild(card);
-  });
+    container.appendChild(card);
+  });
 }
 
 /* INIT */
 document.addEventListener("DOMContentLoaded", () => {
-  loadDatabase();
+  loadDatabase();
 
-  // Auto-search as user types
-  document.getElementById("searchBar").addEventListener("input", executeSearch);
+  // Search setup
+  document.getElementById("searchBar").addEventListener('input', executeSearch);
+  document.getElementById("searchBtn").onclick = executeSearch;
 
-  document.getElementById("searchBtn").onclick = executeSearch;
+  // Theme and Accent Color setup
+  const themeToggle = document.getElementById("themeToggle");
+  const colorPicker = document.getElementById("colorPicker");
+  
+  function applyTheme(mode) {
+    document.body.classList.toggle("light", mode === "light");
+    themeToggle.textContent = mode === "light" ? "🌙" : "☀️";
+    localStorage.setItem("race_theme", mode);
+  };
+  function applyAccent(c) {
+    document.documentElement.style.setProperty("--accent-color", c);
+    localStorage.setItem("race_accent", c);
+    colorPicker.value = c;
+  }
+  
+  // Load saved preferences
+  applyTheme(localStorage.getItem("race_theme") || "dark");
+  applyAccent(localStorage.getItem("race_accent") || "#58a6ff");
 
-  /* Theme toggle */
-  document.getElementById("themeToggle").onclick = () => {
-    const mode = !document.body.classList.contains("light");
-    document.body.classList.toggle("light", mode);
-    document.getElementById("themeToggle").textContent = mode ? "🌙" : "☀️";
-  };
+  themeToggle.onclick = () => {
+    const nextMode = document.body.classList.contains("light") ? "dark" : "light";
+    applyTheme(nextMode);
+  };
+  colorPicker.oninput = (e) => applyAccent(e.target.value);
 
-  /* Color picker */
-  document.getElementById("colorPicker").addEventListener("input", e => {
-    document.documentElement.style.setProperty("--accent-color", e.target.value);
-  });
 
-  /* Calculator */
-  document.getElementById("calcBtn").onclick = () =>
-    window.open("https://www.calculator.net/date-calculator.html", "_blank");
+  // Calculator button
+  document.getElementById("calcShortcut").onclick = () => {
+    window.open("https://www.calculator.net/date-calculator.html", "_blank");
+  };
 
-  document.addEventListener("keydown", e => {
-    if (e.altKey && e.shiftKey && (e.key === "c" || e.key === "C"))
-      window.open("https://www.calculator.net/date-calculator.html", "_blank");
-  });
+  // ALT + SHIFT + C shortcut
+  document.addEventListener("keydown", e => {
+    if (e.altKey && e.shiftKey && (e.key === "c" || e.key === "C")) {
+      window.open("https://www.calculator.net/date-calculator.html", "_blank");
+    }
+  });
 
-  /* Close window */
-  document.getElementById("closeBtn").onclick = () => {
-    if (isElectron) ipcRenderer.send("close-window");
-    else window.close();
-  };
+  // Close window (Electron/Browser)
+  document.getElementById("closeBtn").onclick = () => {
+    if (isElectron && ipcRenderer) ipcRenderer.send("app-close");
+    else window.close();
+  };
 });
 </script>
 </head>
@@ -334,31 +421,29 @@ document.addEventListener("DOMContentLoaded", () => {
 <body>
 <div class="app-container">
 
-  <div class="header">
-    <div>
-      <h2 style="margin:0;">RACE 2025 Search</h2>
-      <div class="sub-header">PhilHealth Case Rate Search</div>
-    </div>
+  <div class="header">
+    <div>
+      <h2 style="margin:0;">RACE 2025 Search</h2>
+      <div class="sub-header">PhilHealth Case Rate Search</div>
+    </div>
 
-    <div class="settings-panel">
-      <button id="calcBtn" class="btn">📅</button>
-      <input type="color" id="colorPicker" value="#58a6ff">
-      <button id="themeToggle" class="btn">☀️</button>
-      <button id="closeBtn" class="btn">❌</button>
-    </div>
-  </div>
+    <div class="settings-panel">
+      <button id="calcShortcut" class="btn" title="Open Date Calculator (Alt+Shift+C)">📅</button>
+      <input type="color" id="colorPicker" value="#58a6ff" title="Change Accent Color">
+      <button id="themeToggle" class="btn" title="Toggle Light/Dark Theme">☀️</button>
+      <button id="closeBtn" class="btn" title="Close Window">❌</button>
+    </div>
+  </div>
 
-  <div class="search-area">
-    <input type="text" id="searchBar" placeholder="Enter ICD Code or Description..." disabled>
-    <button id="searchBtn" class="btn" disabled>Search</button>
-  </div>
+  <div class="search-area">
+    <input type="text" id="searchBar" placeholder="Enter ICD Code or Description..." disabled>
+    <button id="searchBtn" class="btn" disabled>Search</button>
+  </div>
 
-  <div id="resultsContainer" class="results-container">
-    <p id="loadingText" class="loading-message">Loading Database...</p>
-  </div>
+  <div id="resultsContainer" class="results-container">
+    <p id="loadingText" class="loading-message">Loading Database...</p>
+  </div>
 
 </div>
 </body>
 </html>
-
-
