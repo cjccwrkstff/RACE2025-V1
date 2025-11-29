@@ -274,16 +274,15 @@ function executeSearch() {
     const card = document.createElement("div");
     card.classList.add("result-card");
 
-    // If the data is combined, the requirements object is accessed directly from the item
-    const req = item.requirements || null; 
+    const req = item.requirements || null;
 
     card.innerHTML = `
       <h3>[${item.code}] ${item.description}</h3>
 
       <div class="rate-info">
-        <div class="rate-item"><strong>Case Rate</strong>₱${(item.rate || 0).toLocaleString()}</div>
-        <div class="rate-item"><strong>Facility</strong>₱${(item.facility || 0).toLocaleString()}</div>
-        <div class="rate-item"><strong>Professional</strong>₱${(item.professional || 0).toLocaleString()}</div>
+        <div class="rate-item"><strong>Case Rate</strong>${item.rate || "-"}</div>
+        <div class="rate-item"><strong>Facility</strong>${item.facility || "-"}</div>
+        <div class="rate-item"><strong>Professional</strong>${item.professional || "-"}</div>
       </div>
 
       ${renderRequirements(req)}
@@ -361,4 +360,5 @@ document.addEventListener("DOMContentLoaded", () => {
 </div>
 </body>
 </html>
+
 
